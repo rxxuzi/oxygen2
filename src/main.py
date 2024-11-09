@@ -1,16 +1,17 @@
-# main.py
-
 import os
+import sys
 import queue
 import subprocess
-import sys
 import threading
 from pathlib import Path
+from datetime import datetime
+import json
 
-import customtkinter as ctk
-from tkinter import messagebox, filedialog
+import eel
 
-from api import DownloaderAPI
+# Include DownloaderAPI class directly in main.py
+import yt_dlp
+from typing import Dict, Any, Callable
 
 
 def resource_path(relative_path):
@@ -35,316 +36,493 @@ def get_default_output_path(for_audio=False):
     return str(output_path)
 
 
-class App(ctk.CTk):
+def get_config_path():
+    home = Path.home()
+    config_dir = home / ".oxygen2"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
+
+
+class DownloaderAPI:
     def __init__(self):
-        super().__init__()
+        self.output_path = None
+        self.video_format = "auto"  # 'auto', 'mp4', 'mov', 'webm', etc.
+        self.audio_format = "auto"  # 'auto', 'mp3', 'wav', 'aac', etc.
+        self.options = {
+            'proxy': None,
+            'sublangs': None,
+            'write_thumbnail': False,
+            'embed_thumbnail': False
+        }
 
-        self.title("Oxygen2")
-        self.geometry("800x600")
-        self.minsize(600, 400)
+    def set_output_path(self, path):
+        self.output_path = path
 
-        # Custom theme setup
-        ctk.set_appearance_mode("dark")  # Options: "light", "dark", "system"
-        ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
+    def set_formats(self, video_format: str, audio_format: str):
+        self.video_format = video_format
+        self.audio_format = audio_format
 
-        # Icon setup
-        icon_path = resource_path("oxygen2.ico")
-        if os.path.exists(icon_path):
-            try:
-                self.iconbitmap(icon_path)
-                print(f"Icon set successfully from: {icon_path}")
-            except Exception as e:
-                print(f"Failed to set icon from {icon_path}: {e}")
+    def set_options(self, proxy=None, sublangs=None, write_thumbnail=False, embed_thumbnail=False):
+        self.options['proxy'] = proxy
+        self.options['sublangs'] = sublangs
+        self.options['write_thumbnail'] = write_thumbnail
+        self.options['embed_thumbnail'] = embed_thumbnail
+
+    def download_media(
+            self,
+            url: str,
+            audio_only: bool = False,
+            quality: str = 'Best',
+            output_filename: str = None,
+            progress_callback: Callable[[float, str], None] = None
+    ) -> Dict[str, Any]:
+        quality_map = {
+            'Best': '',
+            'High': '[height<=1080]',
+            'Medium': '[height<=720]',
+            'Low': '[height<=480]',
+            'Worst': 'worst'
+        }
+
+        # Build format specification
+        if audio_only:
+            if self.audio_format == 'auto':
+                format_spec = 'bestaudio/best'
+            else:
+                format_spec = f'bestaudio[ext={self.audio_format}]/bestaudio/best'
         else:
-            print("Warning: Icon file not found.")
+            if self.video_format == 'auto':
+                format_spec = f'bestvideo{quality_map.get(quality, "")}+bestaudio/best[ext=m4a]/best'
+            else:
+                # Prefer formats with the selected video extension
+                format_spec = f'bestvideo{quality_map.get(quality, "")}[ext={self.video_format}]+bestaudio/best[ext=m4a]/best[ext={self.video_format}]/best'
+                if quality == 'Worst':
+                    format_spec = f'worstvideo[ext={self.video_format}]+worstaudio/worst'
 
-        # Create tabview
-        self.tabview = ctk.CTkTabview(self)
-        self.tabview.pack(fill="both", expand=True, padx=10, pady=10)
-        self.tabview.add("Main")
-        self.tabview.add("Settings")
-        self.tabview.set("Main")
+        # Adjust output template
+        outtmpl = os.path.join(self.output_path, '%(title)s.%(ext)s')
 
-        # Setup tabs
-        self.setup_main_tab()
-        self.setup_settings_tab()
+        if output_filename:
+            outtmpl = os.path.join(self.output_path, output_filename)
 
-        # Initialize DownloaderAPI
-        self.api = DownloaderAPI(self.output_path)
+        def progress_hook(d):
+            if d.get('status') == 'downloading':
+                total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
+                downloaded_bytes = d.get('downloaded_bytes', 0)
+                progress = downloaded_bytes / total_bytes if total_bytes else 0
+                filename = d.get('filename', 'Unknown')
+                if progress_callback:
+                    progress_callback(progress, filename)
 
-        # Initialize download queue and worker thread
+        ydl_opts = {
+            'format': format_spec,
+            'outtmpl': outtmpl,
+            'quiet': True,
+            'no_warnings': True,
+            'progress_hooks': [progress_hook],
+            'noplaylist': True,
+            'proxy': self.options['proxy'],
+            'writesubtitles': bool(self.options['sublangs']),
+            'subtitleslangs': self.options['sublangs'].split(',') if self.options['sublangs'] else None,
+            'writethumbnail': self.options['write_thumbnail'],
+            'embedthumbnail': self.options['embed_thumbnail'],
+            'merge_output_format': self.video_format if not audio_only and self.video_format != 'auto' else None,
+        }
+
+        # Add postprocessors for video if necessary
+        if not audio_only and self.options['embed_thumbnail']:
+            ydl_opts.setdefault('postprocessors', [])
+            ydl_opts['postprocessors'].append({'key': 'EmbedThumbnail'})
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+                return {"success": True, "filename": filename, "info": info}
+        except Exception as e:
+            # Remove partial file if exists
+            if 'filename' in locals():
+                partial_file = filename
+                if partial_file and os.path.exists(partial_file):
+                    os.remove(partial_file)
+            return {"success": False, "error": str(e)}
+
+
+class App:
+    def __init__(self):
+        self.api = DownloaderAPI()
+
         self.download_queue = queue.Queue()
         self.worker_thread = threading.Thread(target=self.download_worker, daemon=True)
         self.worker_thread.start()
 
-    def setup_main_tab(self):
-        main_tab = self.tabview.tab("Main")
-        main_tab.grid_columnconfigure(0, weight=1)
-        main_tab.grid_rowconfigure(0, weight=1)
+        self.download_logs = []
 
-        # メインフレーム
-        main_frame = ctk.CTkFrame(main_tab)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        self.settings = {
+            # Video Settings
+            'video_quality': 'Best',
+            'video_format': 'auto',
+            'video_output_path': get_default_output_path(for_audio=False),
 
-        # URL入力セクション
-        url_frame = ctk.CTkFrame(main_frame)
-        url_frame.pack(fill="x", pady=(0, 10))
+            # Audio Settings
+            'audio_format': 'auto',
+            'audio_output_path': get_default_output_path(for_audio=True),
 
-        self.url_entry = ctk.CTkEntry(
-            url_frame,
-            placeholder_text="Enter YouTube URL",
-            font=("Helvetica", 14)
-        )
-        self.url_entry.pack(fill="x")
+            # Other Settings
+            'proxy': None,
+            'sublangs': None,
+            'write_thumbnail': False,
+            'embed_thumbnail': False
+        }
 
-        # オプションセクション
-        options_frame = ctk.CTkFrame(main_frame)
-        options_frame.pack(fill="x", pady=(0, 10))
+        self.load_settings_from_file()
 
-        self.audio_var = ctk.BooleanVar()
-        self.audio_checkbox = ctk.CTkCheckBox(
-            options_frame,
-            text="Audio Only",
-            variable=self.audio_var,
-            command=self.update_output_path,
-            font=("Helvetica", 12)
-        )
-        self.audio_checkbox.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-
-        self.quality_var = ctk.StringVar(value="Best")
-        self.quality_menu = ctk.CTkOptionMenu(
-            options_frame,
-            values=["Best", "High", "Medium", "Low", "Worst"],
-            variable=self.quality_var,
-            dropdown_font=("Helvetica", 12)
-        )
-        self.quality_menu.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-
-        options_frame.grid_columnconfigure(1, weight=1)
-
-        # 出力パスセクション
-        output_frame = ctk.CTkFrame(main_frame)
-        output_frame.pack(fill="x", pady=(0, 10))
-
-        self.output_path = get_default_output_path()
-        self.output_entry = ctk.CTkEntry(
-            output_frame,
-            font=("Helvetica", 14)
-        )
-        self.output_entry.insert(0, self.output_path)
-        self.output_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
-
-        self.browse_button = ctk.CTkButton(
-            output_frame,
-            text="Browse",
-            command=self.browse_output,
-            font=("Helvetica", 12)
-        )
-        self.browse_button.pack(side="right")
-
-        # ダウンロードボタン
-        self.download_button = ctk.CTkButton(
-            main_frame,
-            text="Download",
-            command=self.add_to_queue,
-            font=("Helvetica", 14, "bold"),
-            fg_color="#4CAF50",
-            hover_color="#45A049"
-        )
-        self.download_button.pack(fill="x", pady=(0, 10))
-
-        # プログレスバー
-        self.progress_bar = ctk.CTkProgressBar(main_frame)
-        self.progress_bar.pack(fill="x", pady=(0, 10))
-        self.progress_bar.set(0)
-
-        # ダウンロードリスト
-        self.download_list = ctk.CTkTextbox(
-            main_frame,
-            state="disabled",
-            font=("Helvetica", 12)
-        )
-        self.download_list.pack(fill="both", expand=True, pady=(0, 10))
-
-        # アクションボタンセクション
-        actions_frame = ctk.CTkFrame(main_frame)
-        actions_frame.pack(fill="x")
-
-        self.clear_console_button = ctk.CTkButton(
-            actions_frame,
-            text="Clear Console",
-            command=self.clear_console,
-            font=("Helvetica", 12),
-            fg_color="#f44336",
-            hover_color="#d32f2f"
-        )
-        self.clear_console_button.pack(side="left", expand=True, fill="x", padx=(0, 5))
-
-        self.open_folder_button = ctk.CTkButton(
-            actions_frame,
-            text="Open Folder",
-            command=self.open_download_folder,
-            font=("Helvetica", 12),
-            fg_color="#2196F3",
-            hover_color="#1976D2"
-        )
-        self.open_folder_button.pack(side="right", expand=True, fill="x", padx=(5, 0))
-
-    def setup_settings_tab(self):
-        settings_tab = self.tabview.tab("Settings")
-        settings_tab.grid_columnconfigure(0, weight=1)
-        settings_tab.grid_rowconfigure(0, weight=1)
-
-        frame = ctk.CTkFrame(settings_tab)
-        frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-        # Download Format Label
-        format_label = ctk.CTkLabel(
-            frame,
-            text="Select Download Format:",
-            anchor="w",
-            font=("Helvetica", 16)
-        )
-        format_label.pack(fill="x", pady=(0, 10))
-
-        # Tabview for Video and Audio Formats
-        format_tabview = ctk.CTkTabview(frame)
-        format_tabview.pack(fill="both", expand=True)
-        format_tabview.add("Video")
-        format_tabview.add("Audio")
-        format_tabview.set("Video")
-
-        # Video Format Tab
-        video_tab = format_tabview.tab("Video")
-        video_tab.grid_columnconfigure(0, weight=1)
-        video_tab.grid_rowconfigure(0, weight=1)
-
-        video_frame = ctk.CTkFrame(video_tab)
-        video_frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        self.video_format_var = ctk.StringVar(value="auto")
-        video_formats = ["auto", "mp4", "webm"]
-        self.video_format_menu = ctk.CTkOptionMenu(
-            video_frame,
-            values=video_formats,
-            variable=self.video_format_var,
-            dropdown_font=("Helvetica", 12)
-        )
-        self.video_format_menu.pack(fill="x", pady=10)
-
-        # Audio Format Tab
-        audio_tab = format_tabview.tab("Audio")
-        audio_tab.grid_columnconfigure(0, weight=1)
-        audio_tab.grid_rowconfigure(0, weight=1)
-
-        audio_frame = ctk.CTkFrame(audio_tab)
-        audio_frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        self.audio_format_var = ctk.StringVar(value="auto")
-        audio_formats = ["auto", "mp3", "wav"]
-        self.audio_format_menu = ctk.CTkOptionMenu(
-            audio_frame,
-            values=audio_formats,
-            variable=self.audio_format_var,
-            dropdown_font=("Helvetica", 12)
-        )
-        self.audio_format_menu.pack(fill="x", pady=10)
-
-    def update_output_path(self):
-        new_path = get_default_output_path(self.audio_var.get())
-        self.output_path = new_path
-        self.output_entry.delete(0, ctk.END)
-        self.output_entry.insert(0, self.output_path)
-        self.api.output_path = self.output_path
-
-    def browse_output(self):
-        new_path = filedialog.askdirectory(initialdir=self.output_path)
-        if new_path:
-            self.output_path = new_path
-            self.output_entry.delete(0, ctk.END)
-            self.output_entry.insert(0, self.output_path)
-            self.api.output_path = self.output_path
-
-    def add_to_queue(self):
-        url = self.url_entry.get()
-        audio_only = self.audio_var.get()
-        quality = ["Best", "High", "Medium", "Low", "Worst"].index(self.quality_var.get())
-
-        if audio_only:
-            download_format = self.audio_format_var.get()
-            format_type = "audio"
-        else:
-            download_format = self.video_format_var.get()
-            format_type = "video"
-
+    def add_to_queue(self, url, audio_only):
         if not url:
-            messagebox.showwarning("Input Error", "Please enter a URL.")
+            eel.updateDownloadList("Please enter a URL.")
             return
 
-        self.download_queue.put((url, audio_only, quality, download_format, format_type))
-        self.update_download_list(f"Added to queue: {url}")
-        self.url_entry.delete(0, 'end')
+        self.download_queue.put((url, audio_only))
+        eel.updateDownloadList(f"Added to queue: {url}")
+
+    def browse_output(output_type):
+        import threading
+
+        def run_dialog():
+            import tkinter as tk
+            from tkinter import filedialog
+
+            root = tk.Tk()
+            root.withdraw()
+            initial_dir = app.settings.get(f'{output_type}_output_path', '')
+            path = filedialog.askdirectory(initialdir=initial_dir)
+            root.destroy()
+            if path:
+                app.settings[f'{output_type}_output_path'] = path
+                app.save_settings_to_file()
+                eel.set_browse_output(output_type, path)
+            else:
+                eel.set_browse_output(output_type, None)
+
+        threading.Thread(target=run_dialog).start()
+
+    def open_download_folder(self):
+        output_path = app.settings['audio_output_path'] if getattr(app, 'current_audio_only', False) else app.settings[
+            'video_output_path']
+        try:
+            if sys.platform.startswith('win'):
+                os.startfile(output_path)
+            elif sys.platform.startswith('darwin'):
+                subprocess.Popen(["open", output_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.Popen(["xdg-open", output_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            eel.updateDownloadList(f"Failed to open folder: {e}")
+
+    def open_logs_folder(self):
+        logs_dir = get_config_path() / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            if sys.platform.startswith('win'):
+                os.startfile(str(logs_dir))
+            elif sys.platform.startswith('darwin'):
+                subprocess.Popen(["open", str(logs_dir)])
+            else:
+                subprocess.Popen(["xdg-open", str(logs_dir)])
+        except Exception as e:
+            eel.updateDownloadList(f"Failed to open logs folder: {e}")
+
+    def save_logs(self):
+        config_dir = get_config_path()
+        logs_dir = config_dir / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        log_filename = logs_dir / f"O2-{timestamp}.log"
+        with open(log_filename, 'w', encoding='utf-8') as f:
+            json.dump(self.download_logs, f, ensure_ascii=False, indent=4)
+
+    def load_logs(self):
+        logs_dir = get_config_path() / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_files = sorted(logs_dir.glob("O2-*.log"), reverse=True)
+        if not log_files:
+            eel.updateDownloadList("No logs found.")
+            return
+        self.download_logs = []
+        eel.clearLogsTable()
+        for log_file in log_files:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                logs = json.load(f)
+                self.download_logs.extend(logs)
+                for log_entry in logs:
+                    eel.updateLogsTable(log_entry)
+        eel.updateDownloadList(f"Loaded logs from {len(log_files)} file(s).")
 
     def download_worker(self):
         while True:
-            url, audio_only, quality, download_format, format_type = self.download_queue.get()
-            self.update_download_list(f"Downloading: {url}")
+            url, audio_only = self.download_queue.get()
+            self.current_audio_only = audio_only
+            eel.updateDownloadList(f"Downloading: {url}")
+            eel.setProgressBar(0.0)
 
-            # プログレスバーをリセット
-            self.progress_bar.set(0)
+            if audio_only:
+                output_path = self.settings['audio_output_path']
+                format = self.settings['audio_format']
+                quality = None  # Not applicable for audio-only downloads
+            else:
+                output_path = self.settings['video_output_path']
+                format = self.settings['video_format']
+                quality = self.settings['video_quality']
 
-            # Set format in API
-            self.api.set_format(download_format, format_type)
+            self.api.set_output_path(output_path)
+            self.api.set_formats(self.settings['video_format'], self.settings['audio_format'])
+            self.api.set_options(
+                proxy=self.settings['proxy'],
+                sublangs=self.settings['sublangs'],
+                write_thumbnail=self.settings['write_thumbnail'],
+                embed_thumbnail=self.settings['embed_thumbnail']
+            )
 
             def progress_callback(progress, filename):
-                self.update_download_list(f"Progress for {os.path.basename(filename)}: {progress:.2%}")
-                self.progress_bar.set(progress)
+                eel.updateDownloadList(f"Progress for {os.path.basename(filename)}: {progress:.2%}")
+                eel.setProgressBar(progress)
 
             result = self.api.download_media(url, audio_only, quality, progress_callback=progress_callback)
 
+            date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
             if result["success"]:
-                self.update_download_list(f"Download completed: {os.path.basename(result['filename'])}")
+                filename = os.path.basename(result['filename'])
+                eel.updateDownloadList(f"Download completed: {filename}")
+                log_entry = {
+                    "result": "Success",
+                    "date": date_str,
+                    "url": url,
+                    "folder": output_path
+                }
             else:
-                self.update_download_list(f"Download failed: {result['error']}")
+                eel.updateDownloadList(f"Download failed: {result['error']}")
+                log_entry = {
+                    "result": "Failed",
+                    "date": date_str,
+                    "url": url,
+                    "folder": output_path
+                }
+            eel.setProgressBar(0.0)
+            self.download_logs.append(log_entry)
+            self.save_logs()  # Save logs automatically
+            eel.updateLogsTable(log_entry)
+            eel.resetDownloadState()  # Reset the download state in the frontend
 
             self.download_queue.task_done()
 
-    def update_download_list(self, message):
-        def update():
-            self.download_list.configure(state="normal")
-            self.download_list.insert("end", message + "\n")
-            self.download_list.see("end")
-            self.download_list.configure(state="disabled")
+    # Methods for handling settings
+    def set_video_quality(self, quality):
+        self.settings['video_quality'] = quality
+        self.save_settings_to_file()
 
-        self.after(0, update)
+    def set_video_format(self, video_format):
+        self.settings['video_format'] = video_format
+        self.save_settings_to_file()
 
-    def clear_console(self):
-        self.download_list.configure(state="normal")
-        self.download_list.delete("1.0", ctk.END)
-        self.download_list.configure(state="disabled")
+    def set_video_output_path(self, path):
+        self.settings['video_output_path'] = path
+        self.save_settings_to_file()
 
-    def open_download_folder(self):
-        if sys.platform == "win32":
-            os.startfile(self.output_path)
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", self.output_path])
+    def set_audio_format(self, audio_format):
+        self.settings['audio_format'] = audio_format
+        self.save_settings_to_file()
+
+    def set_audio_output_path(self, path):
+        self.settings['audio_output_path'] = path
+        self.save_settings_to_file()
+
+    def set_proxy(self, proxy):
+        self.settings['proxy'] = proxy
+        self.save_settings_to_file()
+
+    def set_sublangs(self, sublangs):
+        self.settings['sublangs'] = sublangs
+        self.save_settings_to_file()
+
+    def set_write_thumbnail(self, write_thumbnail):
+        self.settings['write_thumbnail'] = write_thumbnail
+        self.save_settings_to_file()
+
+    def set_embed_thumbnail(self, embed_thumbnail):
+        self.settings['embed_thumbnail'] = embed_thumbnail
+        self.save_settings_to_file()
+
+    def reset_settings(self):
+        self.settings = {
+            # Video Settings
+            'video_quality': 'Best',
+            'video_format': 'auto',
+            'video_output_path': get_default_output_path(for_audio=False),
+
+            # Audio Settings
+            'audio_format': 'auto',
+            'audio_output_path': get_default_output_path(for_audio=True),
+
+            # Other Settings
+            'proxy': None,
+            'sublangs': None,
+            'write_thumbnail': False,
+            'embed_thumbnail': False
+        }
+        self.save_settings_to_file()
+        return self.settings
+
+    def get_logs(self):
+        return self.download_logs
+
+    def load_settings(self):
+        return self.settings
+
+    def save_settings_to_file(self):
+        config_dir = get_config_path()
+        settings_file = config_dir / "setting.json"
+        with open(settings_file, 'w', encoding='utf-8') as f:
+            json.dump(self.settings, f, ensure_ascii=False, indent=4)
+
+    def load_settings_from_file(self):
+        config_dir = get_config_path()
+        settings_file = config_dir / "setting.json"
+        if settings_file.exists():
+            with open(settings_file, 'r', encoding='utf-8') as f:
+                self.settings = json.load(f)
         else:
-            subprocess.Popen(["xdg-open", self.output_path])
+            self.save_settings_to_file()
+
+
+app = None
+
+
+# Expose top-level functions via @eel.expose to avoid naming collisions
+@eel.expose
+def add_to_queue(url, audio_only):
+    global app
+    app.add_to_queue(url, audio_only)
+
+
+@eel.expose
+def browse_output(output_type):
+    global app
+    app.browse_output(output_type)
+
+
+@eel.expose
+def set_browse_output(output_type, path):
+    # This function is called from Python to JavaScript
+    pass  # Handled in JavaScript
+
+
+@eel.expose
+def open_download_folder():
+    global app
+    app.open_download_folder()
+
+
+@eel.expose
+def open_logs_folder():
+    global app
+    app.open_logs_folder()
+
+
+@eel.expose
+def load_logs():
+    global app
+    app.load_logs()
+
+
+@eel.expose
+def load_settings():
+    global app
+    return app.load_settings()
+
+
+@eel.expose
+def reset_settings():
+    global app
+    settings = app.reset_settings()
+    return settings
+
+
+@eel.expose
+def set_video_quality(quality):
+    global app
+    app.set_video_quality(quality)
+
+
+@eel.expose
+def set_video_format(video_format):
+    global app
+    app.set_video_format(video_format)
+
+
+@eel.expose
+def set_video_output_path(path):
+    global app
+    app.set_video_output_path(path)
+
+
+@eel.expose
+def set_audio_output_path(path):
+    global app
+    app.set_audio_output_path(path)
+
+
+@eel.expose
+def set_audio_format(audio_format):
+    global app
+    app.set_audio_format(audio_format)
+
+
+@eel.expose
+def set_proxy(proxy):
+    global app
+    app.set_proxy(proxy)
+
+
+@eel.expose
+def set_sublangs(sublangs):
+    global app
+    app.set_sublangs(sublangs)
+
+
+@eel.expose
+def set_write_thumbnail(write_thumbnail):
+    global app
+    app.set_write_thumbnail(write_thumbnail)
+
+
+@eel.expose
+def set_embed_thumbnail(embed_thumbnail):
+    global app
+    app.set_embed_thumbnail(embed_thumbnail)
+
+
+@eel.expose
+def resetDownloadState():
+    # This function can be empty; it's called from Python to JavaScript
+    pass
 
 
 def check_ffmpeg():
     try:
         subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        messagebox.showerror(
-            "Error",
-            "FFmpeg is not installed or not in the system PATH. Please install FFmpeg "
-            "and add it to your system PATH."
-        )
+        print(
+            "FFmpeg is not installed or not in the system PATH. Please install FFmpeg and add it to your system PATH.")
         sys.exit(1)
 
+
+def on_close(page, sockets):
+    print("Closing application...")
+    sys.exit()
 
 if __name__ == "__main__":
     check_ffmpeg()
     app = App()
-    app.mainloop()
+    eel.init('web')
+    eel.start('index.html', size=(1000, 800), close_callback=on_close)

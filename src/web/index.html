@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Oxygen2 Downloader</title>
+    <script type="text/javascript" src="/eel.js"></script>
+    <script defer src="main.js"></script>
+    <link rel="stylesheet" href="design.css">
+</head>
+<body>
+
+<header>
+    <div id="title">
+        <img src="oxygen2.svg" alt="Oxygen2 Downloader" class="logo">
+        <h1>Oxygen2 Downloader</h1>
+    </div>
+    <div class="tabs">
+        <button id="main-tab-btn" class="active tab-btn">Main</button>
+        <button id="settings-tab-btn" class="tab-btn">Settings</button>
+        <button id="logs-tab-btn" class="tab-btn">Logs</button>
+    </div>
+</header>
+
+<main class="container">
+    <!-- Main Tab -->
+    <section id="main-tab" class="tab active">
+        <h2>Downloader</h2>
+        <input type="text" id="url-input" placeholder="Enter URL">
+
+        <div id="main-set">
+            <div class="setting-item">
+                <label for="quality-select">Quality:</label>
+                <select id="quality-select">
+                    <option>Best</option>
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                    <option>Worst</option>
+                </select>
+            </div>
+
+            <div id="audio-only">
+                <label>
+                    Audio Only <input type="checkbox" id="audio-checkbox">
+                </label>
+            </div>
+
+            <div class="download-buttons">
+                <button class="btn" id="download-btn">Download</button>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+        </div>
+
+        <textarea id="download-list" readonly></textarea>
+
+        <div class="actions">
+            <button class="btn" id="clear-console-btn">Clear Console</button>
+            <button class="btn" id="open-folder-btn">Open Folder</button>
+        </div>
+    </section>
+
+    <!-- Settings Tab -->
+    <section id="settings-tab" class="tab">
+        <h2>Settings</h2>
+
+        <!-- Video Settings -->
+        <div class="video-settings">
+            <h3>Video Settings</h3>
+            <div class="setting-item">
+                <label for="video-format-select">Format:</label>
+                <select id="video-format-select">
+                    <option value="auto">Auto</option>
+                    <option value="mp4">MP4</option>
+                    <option value="mov">MOV</option>
+                    <option value="webm">WebM</option>
+                </select>
+            </div>
+            <label for="video-output-path">Output Path:</label>
+            <div class="path-container">
+                <input type="text" id="video-output-path" placeholder="Video Output Path">
+                <button class="btn" id="video-browse-btn">Browse</button>
+            </div>
+        </div>
+
+        <!-- Audio Settings -->
+        <div class="audio-settings">
+            <h3>Audio Settings</h3>
+            <div class="setting-item">
+                <label for="audio-format-select">Format:</label>
+                <select id="audio-format-select">
+                    <option value="auto">Auto</option>
+                    <option value="mp3">MP3</option>
+                    <option value="wav">WAV</option>
+                    <option value="aac">AAC</option>
+                </select>
+            </div>
+            <label for="audio-output-path">Output Path:</label>
+            <div class="path-container">
+                <input type="text" id="audio-output-path" placeholder="Audio Output Path">
+                <button class="btn" id="audio-browse-btn">Browse</button>
+            </div>
+        </div>
+
+        <!-- Other Settings -->
+        <div class="other-settings">
+            <h3>Other Settings</h3>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="write-thumbnail-checkbox"> --write-thumbnail
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="embed-thumbnail-checkbox"> --embed-thumbnail
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <label for="proxy-input">Proxy Server:</label>
+                <input type="text" id="proxy-input" placeholder="e.g., http://proxyserver:port">
+            </div>
+
+            <div class="setting-item">
+                <label for="sublangs-input">Subtitle Languages (--sub-langs):</label>
+                <input type="text" id="sublangs-input" placeholder="e.g., en.*,ja">
+            </div>
+        </div>
+
+        <button class="btn" id="reset-settings-btn">Reset to Defaults</button>
+    </section>
+
+    <!-- Logs Tab -->
+    <section id="logs-tab" class="tab">
+        <h2>Download Logs</h2>
+        <button class="btn" id="open-logs-btn">Open Logs</button>
+        <button class="btn" id="load-logs-btn">Load Logs</button>
+        <table id="logs-table">
+            <thead>
+            <tr>
+                <th>Result</th>
+                <th>Date</th>
+                <th>URL</th>
+                <th>Folder</th>
+            </tr>
+            </thead>
+            <tbody>
+            <!-- Logs will be inserted here -->
+            </tbody>
+        </table>
+    </section>
+</main>
+<script src="design.js"></script>
+</body>
+</html>

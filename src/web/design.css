@@ -1,0 +1,364 @@
+:root {
+    --primary-blue: #007bff;
+    --secondary-blue: #0056b3;
+    --accent-blue: #00a8ff;
+    --background-dark: #0a0e17;
+    --surface-dark: #1a1f2e;
+    --console-dark: #0d1117;
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --main-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+    --console-font: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    overflow-x: hidden;
+}
+
+body {
+    background-color: var(--background-dark);
+    color: var(--text-primary);
+    font-family: var(--main-font);
+    font-weight: 200;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    min-width: 400px;
+    overflow-x: hidden;
+}
+
+/* Header and Logo */
+header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.logo {
+    width: auto;
+    height: 2.8rem;
+}
+
+h1, h2, h3, p, label {
+    font-family: var(--main-font);
+    font-weight: 200;
+    padding: 0.5rem;
+}
+
+h1 {
+    margin: 0;
+    font-size: 2.5rem;
+    background: linear-gradient(45deg, var(--primary-blue), var(--accent-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(0, 123, 255, 0.5);
+    white-space: nowrap;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    gap: 2rem;
+    margin-left: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.tabs button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    font-weight: 300;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.tabs button::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: var(--primary-blue);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.tabs button.active {
+    color: var(--primary-blue);
+}
+
+.tabs button.active::after {
+    transform: scaleX(1);
+}
+
+.tabs button:hover {
+    color: var(--primary-blue);
+}
+
+/* Container and Tabs Content */
+.container {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.tab {
+    display: none;
+    text-align: left;
+}
+
+.tab.active {
+    display: block;
+}
+
+/* Form elements */
+input[type="text"], select, textarea {
+    background-color: var(--surface-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    width: 100%;
+    margin-bottom: 1rem;
+    font-family: var(--main-font);
+    font-weight: 200;
+    transition: all 0.3s ease;
+    text-align: left;
+    font-size: 1rem;
+}
+
+input[type="text"]:hover, select:hover, textarea:hover,
+input[type="text"]:focus, select:focus, textarea:focus {
+    box-shadow: 0 0 0 2px var(--primary-blue);
+    outline: none;
+}
+
+/* Path container with 4:1 ratio */
+.path-container {
+    display: grid;
+    grid-template-columns: 4fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    width: 100%;
+}
+
+.path-container input {
+    margin-bottom: 0;
+}
+
+/* Buttons */
+button {
+    background-color: var(--surface-dark);
+    color: var(--text-primary);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--main-font);
+    font-weight: 400;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.btn:hover {
+    box-shadow: 0 0 0 2px var(--primary-blue);
+}
+
+#download-btn {
+    background: linear-gradient(45deg, var(--primary-blue), var(--accent-blue));
+    border: none;
+    font-weight: 500;
+    width: 100%;
+}
+
+#download-btn:hover {
+    background: linear-gradient(45deg, var(--accent-blue), var(--primary-blue));
+}
+
+/* Console/Download list with darker background */
+#download-list {
+    height: 200px;
+    resize: none;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    background-color: var(--console-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    font-weight: 400;
+    font-family: var(--console-font);
+    color: #a9b7c6;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+#download-list::-webkit-scrollbar {
+    display: none;
+}
+
+/* Progress bar */
+.progress-container {
+    background-color: var(--surface-dark);
+    border-radius: 8px;
+    height: 8px;
+    margin: 1rem 0;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #dc3545;
+    width: 0;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+/* Settings and form elements */
+.setting-item {
+    margin-bottom: 1rem;
+    text-align: left;
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+    margin-right: 8px;
+    vertical-align: middle;
+    width: 20px;
+    height: 20px;
+}
+
+#audio-only {
+    margin-bottom: 1rem;
+    text-align: left;
+    font-weight: 200;
+}
+
+/* Logs table */
+#logs-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 1rem;
+}
+
+#logs-table th, #logs-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#logs-table th {
+    background-color: var(--surface-dark);
+    font-weight: 400;
+    color: var(--text-secondary);
+}
+
+#logs-table tr.good {
+    background-color: rgba(40, 167, 69, 0.1);
+}
+
+#logs-table tr.bad {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--surface-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-blue);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-blue);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    header {
+        padding: 0.5rem;
+    }
+
+    #title {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    h1 {
+        font-size: 2rem;
+    }
+
+    .container {
+        padding: 0.5rem;
+    }
+}
+
+@media (max-width: 600px) {
+    .path-container {
+        grid-template-columns: 1fr;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    .logo {
+        height: 2.2rem;
+    }
+}
+
+@media (max-width: 400px) {
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    .logo {
+        height: 1.8rem;
+    }
+
+    .tabs {
+        gap: 1rem;
+    }
+
+    .tabs button {
+        font-size: 1rem;
+        padding: 0.4rem 0.8rem;
+    }
+}

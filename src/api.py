@@ -1,45 +1,67 @@
-# src/api.py
+# api.py
 
 import os
 import yt_dlp
 from typing import Dict, Any, Callable
 
-
 class DownloaderAPI:
-    def __init__(self, output_path: str):
-        self.output_path = output_path
-        self.format = "auto"       # 'auto', 'mp4', 'webm', 'mp3', 'wav'
-        self.format_type = "video"  # 'video' or 'audio'
+    def __init__(self):
+        self.output_path = None
+        self.video_format = "auto"  # 'auto', 'mp4', 'mov', 'webm', etc.
+        self.audio_format = "auto"  # 'auto', 'mp3', 'wav', 'aac', etc.
+        self.options = {
+            'proxy': None,
+            'sublangs': None,
+            'write_thumbnail': False,
+            'embed_thumbnail': False
+        }
 
-    def set_format(self, download_format: str, format_type: str):
-        self.format = download_format
-        self.format_type = format_type
+    def set_output_path(self, path):
+        self.output_path = path
+
+    def set_formats(self, video_format: str, audio_format: str):
+        self.video_format = video_format
+        self.audio_format = audio_format
+
+    def set_options(self, proxy=None, sublangs=None, write_thumbnail=False, embed_thumbnail=False):
+        self.options['proxy'] = proxy
+        self.options['sublangs'] = sublangs
+        self.options['write_thumbnail'] = write_thumbnail
+        self.options['embed_thumbnail'] = embed_thumbnail
 
     def download_media(
             self,
             url: str,
             audio_only: bool = False,
-            quality: int = 0,
+            quality: str = 'Best',
             output_filename: str = None,
             progress_callback: Callable[[float, str], None] = None
     ) -> Dict[str, Any]:
         quality_map = {
-            0: 'bestvideo+bestaudio/best',
-            1: 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
-            2: 'bestvideo[height<=720]+bestaudio/best[height<=720]',
-            3: 'bestvideo[height<=480]+bestaudio/best[height<=480]',
-            4: 'worstvideo+worstaudio/worst'
+            'Best': '',
+            'High': '[height<=1080]',
+            'Medium': '[height<=720]',
+            'Low': '[height<=480]',
+            'Worst': 'worst'
         }
-        format_spec = quality_map.get(quality, 'best')
 
-        if audio_only or self.format_type == "audio":
-            format_spec = 'bestaudio/best'
-
-        # Adjust output template based on format
-        if self.format == "auto":
-            outtmpl = os.path.join(self.output_path, '%(title)s.%(ext)s')
+        # Build format specification
+        if audio_only:
+            if self.audio_format == 'auto':
+                format_spec = 'bestaudio/best'
+            else:
+                format_spec = f'bestaudio[ext={self.audio_format}]/bestaudio/best'
         else:
-            outtmpl = os.path.join(self.output_path, f'%(title)s.{self.format}')
+            if self.video_format == 'auto':
+                format_spec = f'bestvideo{quality_map.get(quality, "")}+bestaudio/best'
+            else:
+                # Prefer formats with the selected video extension
+                format_spec = f'bestvideo{quality_map.get(quality, "")}[ext={self.video_format}]+bestaudio/best[ext=m4a]/best[ext={self.video_format}]/best'
+                if quality == 'Worst':
+                    format_spec = f'worst[ext={self.video_format}]/worst'
+
+        # Adjust output template
+        outtmpl = os.path.join(self.output_path, '%(title)s.%(ext)s')
 
         if output_filename:
             outtmpl = os.path.join(self.output_path, output_filename)
@@ -59,39 +81,34 @@ class DownloaderAPI:
             'quiet': True,
             'no_warnings': True,
             'progress_hooks': [progress_hook],
+            'noplaylist': True,
+            'proxy': self.options['proxy'],
+            'writesubtitles': bool(self.options['sublangs']),
+            'subtitleslangs': self.options['sublangs'].split(',') if self.options['sublangs'] else None,
+            'writethumbnail': self.options['write_thumbnail'],
+            'embedthumbnail': self.options['embed_thumbnail'],
+            'merge_output_format': self.video_format if not audio_only and self.video_format != 'auto' else None,
         }
 
-        # Postprocessors for audio formats
-        if audio_only or self.format_type == "audio":
-            if self.format in ["mp3", "wav"]:
-                preferred_codec = self.format
-            else:
-                preferred_codec = 'mp3'  # Default to mp3
+        # For audio-only downloads, handle format conversion
+        if audio_only and self.audio_format != 'auto':
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': preferred_codec,
+                'preferredcodec': self.audio_format,
                 'preferredquality': '192',
             }]
+            if self.options['embed_thumbnail']:
+                ydl_opts['postprocessors'].append({'key': 'EmbedThumbnail'})
 
-        # Postprocessors for video formats
-        if self.format in ["mp4", "webm"]:
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegVideoConvertor',
-                'preferedformat': self.format,
-            }]
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
-                # Update filename based on format
-                if self.format in ["mp4", "webm", "mp3", "wav"]:
-                    filename = os.path.splitext(filename)[0] + f".{self.format}"
                 return {"success": True, "filename": filename, "info": info}
-            except Exception as e:
-                # Remove partial file if exists
-                if "total_bytes" in str(e):
-                    partial_file = ydl.prepare_filename(info) if 'info' in locals() else None
-                    if partial_file and os.path.exists(partial_file):
-                        os.remove(partial_file)
-                return {"success": False, "error": str(e)}
+        except Exception as e:
+            # Remove partial file if exists
+            if 'filename' in locals():
+                partial_file = filename
+                if partial_file and os.path.exists(partial_file):
+                    os.remove(partial_file)
+            return {"success": False, "error": str(e)}
