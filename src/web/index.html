@@ -24,7 +24,6 @@
 <main class="container">
     <!-- Main Tab -->
     <section id="main-tab" class="tab active">
-        <h2>Downloader</h2>
         <input type="text" id="url-input" placeholder="Enter URL">
 
         <div id="main-set">
@@ -101,6 +100,29 @@
             <div class="path-container">
                 <input type="text" id="audio-output-path" placeholder="Audio Output Path">
                 <button class="btn" id="audio-browse-btn">Browse</button>
+            </div>
+        </div>
+
+        <!-- Download Setting -->
+        <div class="dl-settings">
+            <h3>Download Settings</h3>
+            <div class="setting-item">
+                <label>
+                    <span>Segments</span>
+                    <input type="number" min="1" max="10" value="4" id="segments">
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>
+                    <span>Retries (再試行回数)</span>
+                    <input type="number" min="0" value="5" id="retries">
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>
+                    <span>Buffer Size (バッファサイズ)</span>
+                    <input type="text" placeholder="16M" value="16M" id="buffer-size">
+                </label>
             </div>
         </div>
 

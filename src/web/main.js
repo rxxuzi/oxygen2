@@ -66,6 +66,11 @@ function setSettingsFromFile(settings) {
     document.getElementById('audio-format-select').value = settings.audio_format || 'auto';
     document.getElementById('audio-output-path').value = settings.audio_output_path || '';
 
+    // Download Settings
+    document.getElementById('segments').value = settings.segments || 4;
+    document.getElementById('retries').value = settings.retries || 5;
+    document.getElementById('buffer-size').value = settings.buffer_size || '16M';
+
     // Other Settings
     document.getElementById('proxy-input').value = settings.proxy || '';
     document.getElementById('sublangs-input').value = settings.sublangs || '';
@@ -83,18 +88,6 @@ document.getElementById('audio-output-path').addEventListener('change', () => {
     const path = document.getElementById('audio-output-path').value;
     eel.set_audio_output_path(path);
 });
-
-
-// Browse Button Logic for Video
-document.getElementById('video-browse-btn').addEventListener('click', () => {
-    eel.browse_output('video')();
-});
-
-// Browse Button Logic for Audio
-document.getElementById('audio-browse-btn').addEventListener('click', () => {
-    eel.browse_output('audio')();
-});
-
 
 // Tab Switching Logic and Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -144,11 +137,22 @@ document.getElementById('download-btn').addEventListener('click', () => {
         return;
     }
 
+    const segments = parseInt(document.getElementById('segments').value) || 4;
+    const retries = parseInt(document.getElementById('retries').value) || 5;
+    const bufferSize = document.getElementById('buffer-size').value.trim();
+
+    // Validate buffer size
+    const bufferSizeRegex = /^\d+[KMG]?$/i;
+    const validBufferSize = bufferSizeRegex.test(bufferSize) ? bufferSize : '1M';
+
     isDownloading = true;
     toggleDownloadButtons(true);
 
-    // Pass quality to backend via settings
+    // Pass quality and additional settings to backend via settings
     eel.set_video_quality(quality);
+    eel.set_segments(segments);
+    eel.set_retries(retries);
+    eel.set_buffer_size(validBufferSize);
 
     eel.add_to_queue(url, audioOnly);
     appendToDownloadList('Download started...');
@@ -157,12 +161,12 @@ document.getElementById('download-btn').addEventListener('click', () => {
 
 // Browse Button Logic for Video
 document.getElementById('video-browse-btn').addEventListener('click', () => {
-    eel.browse_output('video');
+    eel.browse_output('video')();
 });
 
 // Browse Button Logic for Audio
 document.getElementById('audio-browse-btn').addEventListener('click', () => {
-    eel.browse_output('audio');
+    eel.browse_output('audio')();
 });
 
 // Clear Console
@@ -226,6 +230,37 @@ document.getElementById('write-thumbnail-checkbox').addEventListener('change', (
 document.getElementById('embed-thumbnail-checkbox').addEventListener('change', () => {
     const embedThumbnail = document.getElementById('embed-thumbnail-checkbox').checked;
     eel.set_embed_thumbnail(embedThumbnail);
+});
+
+document.getElementById('segments').addEventListener('change', () => {
+    let segments = parseInt(document.getElementById('segments').value);
+    if (isNaN(segments) || segments < 1 || segments > 10) {
+        alert('Segments must be a number between 1 and 10.');
+        document.getElementById('segments').value = '4';
+        segments = 4;
+    }
+    eel.set_segments(segments);
+});
+
+document.getElementById('retries').addEventListener('change', () => {
+    let retries = parseInt(document.getElementById('retries').value);
+    if (isNaN(retries) || retries < 0) {
+        alert('Retries must be a non-negative number.');
+        document.getElementById('retries').value = '5';
+        retries = 5;
+    }
+    eel.set_retries(retries);
+});
+
+document.getElementById('buffer-size').addEventListener('change', () => {
+    let bufferSize = document.getElementById('buffer-size').value.trim();
+    const bufferSizeRegex = /^\d+[KMG]?$/i;
+    if (!bufferSizeRegex.test(bufferSize)) {
+        alert('Invalid buffer size format. Defaulting to 1M.');
+        bufferSize = '1M';
+        document.getElementById('buffer-size').value = bufferSize;
+    }
+    eel.set_buffer_size(bufferSize);
 });
 
 // Function to toggle download buttons

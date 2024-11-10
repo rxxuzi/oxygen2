@@ -131,7 +131,7 @@ h1 {
 }
 
 /* Form elements */
-input[type="text"], select, textarea {
+input[type="text"], input[type="number"], select, textarea {
     background-color: var(--surface-dark);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
@@ -146,8 +146,8 @@ input[type="text"], select, textarea {
     font-size: 1rem;
 }
 
-input[type="text"]:hover, select:hover, textarea:hover,
-input[type="text"]:focus, select:focus, textarea:focus {
+input[type="text"]:hover, input[type="number"]:hover, select:hover, textarea:hover,
+input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
     box-shadow: 0 0 0 2px var(--primary-blue);
     outline: none;
 }

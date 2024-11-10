@@ -3,6 +3,8 @@
 import os
 import yt_dlp
 from typing import Dict, Any, Callable
+from world import get_config_path
+
 
 class DownloaderAPI:
     def __init__(self):
@@ -13,7 +15,11 @@ class DownloaderAPI:
             'proxy': None,
             'sublangs': None,
             'write_thumbnail': False,
-            'embed_thumbnail': False
+            'embed_thumbnail': False,
+            'segments': 4,
+            'retries': 5,
+            'buffer_size': '16M',
+            'cachedir': str(get_config_path() / "cache")
         }
 
     def set_output_path(self, path):
@@ -23,11 +29,29 @@ class DownloaderAPI:
         self.video_format = video_format
         self.audio_format = audio_format
 
-    def set_options(self, proxy=None, sublangs=None, write_thumbnail=False, embed_thumbnail=False):
-        self.options['proxy'] = proxy
-        self.options['sublangs'] = sublangs
-        self.options['write_thumbnail'] = write_thumbnail
-        self.options['embed_thumbnail'] = embed_thumbnail
+    def set_options(self, **kwargs):
+        for key, value in kwargs.items():
+            if key in self.options:
+                self.options[key] = value
+
+    def parse_size(self, size_str: str) -> int:
+        """Parse a size string (e.g., '16M') and return the size in bytes."""
+        try:
+            size_str = size_str.strip().upper()
+            if size_str.endswith('K'):
+                return int(float(size_str[:-1]) * 1024)
+            elif size_str.endswith('M'):
+                return int(float(size_str[:-1]) * 1024 * 1024)
+            elif size_str.endswith('G'):
+                return int(float(size_str[:-1]) * 1024 * 1024 * 1024)
+            else:
+                return int(size_str)
+        except:
+            return None
+
+    def validate_buffer_size(self, buffer_size: str) -> bool:
+        """Validate buffer size input. Returns True if valid, False otherwise."""
+        return self.parse_size(buffer_size) is not None
 
     def download_media(
             self,
@@ -58,7 +82,7 @@ class DownloaderAPI:
                 # Prefer formats with the selected video extension
                 format_spec = f'bestvideo{quality_map.get(quality, "")}[ext={self.video_format}]+bestaudio/best[ext=m4a]/best[ext={self.video_format}]/best'
                 if quality == 'Worst':
-                    format_spec = f'worst[ext={self.video_format}]/worst'
+                    format_spec = f'worstvideo[ext={self.video_format}]+worstaudio/worst'
 
         # Adjust output template
         outtmpl = os.path.join(self.output_path, '%(title)s.%(ext)s')
@@ -75,6 +99,11 @@ class DownloaderAPI:
                 if progress_callback:
                     progress_callback(progress, filename)
 
+        # Parse size options
+        # Throttle rate is set to 0 by default and not configurable
+        buffersize = self.parse_size(self.options['buffer_size'])
+        buffersize = buffersize if buffersize else None
+
         ydl_opts = {
             'format': format_spec,
             'outtmpl': outtmpl,
@@ -87,16 +116,22 @@ class DownloaderAPI:
             'subtitleslangs': self.options['sublangs'].split(',') if self.options['sublangs'] else None,
             'writethumbnail': self.options['write_thumbnail'],
             'embedthumbnail': self.options['embed_thumbnail'],
-            'merge_output_format': self.video_format if not audio_only and self.video_format != 'auto' else None,
+            'cachedir': self.options['cachedir'],
+            'retries': int(self.options['retries']),
+            'fragment_retries': int(self.options['retries']),
+            'buffersize': buffersize,
+            'merge_output_format': 'mp4' if not audio_only else None,
+            'concurrent_fragment_downloads': int(self.options['segments']),
         }
 
-        # For audio-only downloads, handle format conversion
+        # Add postprocessors for audio if necessary
         if audio_only and self.audio_format != 'auto':
-            ydl_opts['postprocessors'] = [{
+            ydl_opts.setdefault('postprocessors', [])
+            ydl_opts['postprocessors'].append({
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': self.audio_format,
                 'preferredquality': '192',
-            }]
+            })
             if self.options['embed_thumbnail']:
                 ydl_opts['postprocessors'].append({'key': 'EmbedThumbnail'})
 
