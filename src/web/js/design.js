@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Smooth scrolling for the download list
-    const downloadList = document.getElementById('download-list');
+    const downloadList = document.getElementById('console');
     downloadList.addEventListener('input', () => {
         downloadList.scrollTop = downloadList.scrollHeight;
     });

@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
+from urllib.parse import urlparse
 
 
 def log_error(error_message: str):
@@ -43,7 +44,6 @@ def get_config_path():
     home = Path.home()
     config_dir = home / ".oxygen2"
     config_dir.mkdir(parents=True, exist_ok=True)
-
     return config_dir
 
 
@@ -56,3 +56,27 @@ def check_ffmpeg():
         print(
             "FFmpeg is not installed or not in the system PATH. Please install FFmpeg and add it to your system PATH.")
         sys.exit(1)
+
+
+def get_domain_from_url(url):
+    """Extracts the domain from a URL."""
+    try:
+
+        if not url.startswith(('http://', 'https://')):
+            url = 'http://' + url
+
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+
+        if domain.startswith('www.'):
+            domain = domain[4:]
+
+        if not domain:
+            domain = parsed_url.path
+
+        domain = domain.split(':')[0]
+
+        return domain.strip().lower()
+    except Exception as e:
+        log_error(f"Error parsing domain from URL '{url}': {str(e)}")
+        return ''

@@ -5,7 +5,8 @@
     <title>Oxygen2 Downloader</title>
     <script type="text/javascript" src="/eel.js"></script>
     <script defer src="main.js"></script>
-    <link rel="stylesheet" href="design.css">
+    <link rel="stylesheet" href="css/design.css">
+    <link rel="stylesheet" href="css/auth.css">
 </head>
 <body>
 
@@ -18,6 +19,7 @@
         <button id="main-tab-btn" class="active tab-btn">Main</button>
         <button id="settings-tab-btn" class="tab-btn">Settings</button>
         <button id="logs-tab-btn" class="tab-btn">Logs</button>
+        <button id="auth-tab-btn" class="tab-btn">Auth</button>
     </div>
 </header>
 
@@ -53,7 +55,7 @@
             </div>
         </div>
 
-        <textarea id="download-list" readonly></textarea>
+        <textarea id="console" readonly></textarea>
 
         <div class="actions">
             <button class="btn" id="clear-console-btn">Clear Console</button>
@@ -114,13 +116,13 @@
             </div>
             <div class="setting-item">
                 <label>
-                    <span>Retries (再試行回数)</span>
+                    <span>Retries</span>
                     <input type="number" min="0" value="5" id="retries">
                 </label>
             </div>
             <div class="setting-item">
                 <label>
-                    <span>Buffer Size (バッファサイズ)</span>
+                    <span>Buffer Size</span>
                     <input type="text" placeholder="16M" value="16M" id="buffer-size">
                 </label>
             </div>
@@ -174,7 +176,53 @@
             </tbody>
         </table>
     </section>
+
+    <!-- Auth Tab -->
+    <section id="auth-tab" class="tab">
+        <h2>Add Auth</h2>
+
+        <h3>Cookie</h3>
+        <form id="cookie-form" onsubmit="return false;">
+            <label for="cookie-url">URL:</label>
+            <input type="text" id="cookie-url" name="cookie-url" placeholder="https://example.com"><br><br>
+
+            <label for="cookie-file">Select cookies.txt file:</label>
+            <input type="file" id="cookie-file" name="file"><br><br>
+
+            <button type="button" id="upload-cookie-btn" class="upload">Upload Cookies</button>
+        </form>
+
+        <h3>Password</h3>
+        <form id="pass-form" onsubmit="return false;">
+            <label for="pass-url">URL:</label>
+            <input type="text" id="pass-url" name="url" placeholder="https://example.com"><br><br>
+
+            <label for="pass-username">USERNAME:</label>
+            <input type="text" id="pass-username" name="username"><br><br>
+
+            <label for="pass-password">PASSWORD:</label>
+            <input type="password" id="pass-password" name="password"><br><br>
+
+            <button type="button" id="upload-pass-btn" class="upload">Upload Credentials</button>
+        </form>
+
+        <h2>AUTH TABLE</h2>
+        <table id="auth-table">
+            <thead>
+            <tr>
+                <th>Status</th>
+                <th>URL</th>
+                <th>Type</th>
+                <th>Delete</th>
+            </tr>
+            </thead>
+            <tbody>
+            <!-- Auth entries will be inserted here -->
+            </tbody>
+        </table>
+    </section>
+
 </main>
-<script src="design.js"></script>
+<script src="js/design.js"></script>
 </body>
 </html>

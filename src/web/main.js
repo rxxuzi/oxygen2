@@ -23,7 +23,7 @@ let isDownloading = false;
 
 // Append message to download list
 function appendToDownloadList(message) {
-    const downloadList = document.getElementById('download-list');
+    const downloadList = document.getElementById('console');
     downloadList.value += message + '\n';
     downloadList.scrollTop = downloadList.scrollHeight;
 }
@@ -94,9 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainTabBtn = document.getElementById('main-tab-btn');
     const settingsTabBtn = document.getElementById('settings-tab-btn');
     const logsTabBtn = document.getElementById('logs-tab-btn');
+    const authTabBtn = document.getElementById('auth-tab-btn');
     const mainTab = document.getElementById('main-tab');
     const settingsTab = document.getElementById('settings-tab');
     const logsTab = document.getElementById('logs-tab');
+    const authTab = document.getElementById('auth-tab');
 
     mainTabBtn.addEventListener('click', () => {
         activateTab(mainTabBtn, mainTab);
@@ -106,8 +108,12 @@ document.addEventListener('DOMContentLoaded', () => {
         activateTab(settingsTabBtn, settingsTab);
     });
 
-    logsTabBtn.addEventListener('click', () => {
+    logsTabBtn.addEventListener('click', ()  => {
         activateTab(logsTabBtn, logsTab);
+    });
+
+    authTabBtn.addEventListener('click', () => {
+        activateTab(authTabBtn, authTab);
     });
 
     function activateTab(button, tab) {
@@ -119,6 +125,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load settings from file
     eel.load_settings()(setSettingsFromFile);
+
+    // Load auth entries
+    eel.list_auth_entries()(updateAuthTable);
 });
 
 // Download Button Logic
@@ -171,7 +180,7 @@ document.getElementById('audio-browse-btn').addEventListener('click', () => {
 
 // Clear Console
 document.getElementById('clear-console-btn').addEventListener('click', () => {
-    document.getElementById('download-list').value = '';
+    document.getElementById('console').value = '';
 });
 
 // Open Folder
@@ -273,4 +282,81 @@ eel.expose(resetDownloadState);
 function resetDownloadState() {
     isDownloading = false;
     toggleDownloadButtons(false);
+}
+
+// Handle cookie upload
+document.getElementById('upload-cookie-btn').addEventListener('click', () => {
+    const url = document.getElementById('cookie-url').value.trim();
+    const fileInput = document.getElementById('cookie-file');
+    if (!url || !fileInput.files.length) {
+        alert('Please enter a URL and select a cookie file.');
+        return;
+    }
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        eel.save_cookie(url, content)().then((result) => {
+            if (result) {
+                alert('Cookie saved successfully.');
+                eel.list_auth_entries()(updateAuthTable);
+            } else {
+                alert('Failed to save cookie.');
+            }
+        });
+    };
+    reader.readAsText(file);
+});
+
+// Handle password upload
+document.getElementById('upload-pass-btn').addEventListener('click', () => {
+    const url = document.getElementById('pass-url').value.trim();
+    const username = document.getElementById('pass-username').value.trim();
+    const password = document.getElementById('pass-password').value;
+    if (!url || !username || !password) {
+        alert('Please enter URL, username, and password.');
+        return;
+    }
+    eel.save_credentials(url, username, password)().then((result) => {
+        if (result) {
+            alert('Credentials saved successfully.');
+            eel.list_auth_entries()(updateAuthTable);
+        } else {
+            alert('Failed to save credentials.');
+        }
+    });
+});
+
+// Function to update auth table
+function updateAuthTable(entries) {
+    const authTableBody = document.getElementById('auth-table').querySelector('tbody');
+    authTableBody.innerHTML = '';
+    entries.forEach(entry => {
+        const row = document.createElement('tr');
+        row.classList.add(entry.status === 'success' ? 'good' : 'bad');
+        row.innerHTML = `
+            <td>${entry.status}</td>
+            <td>${entry.domain}</td>
+            <td>${entry.type}</td>
+            <td><button class="delete-auth-btn" data-domain="${entry.domain}" data-type="${entry.type}">Delete</button></td>
+        `;
+        authTableBody.appendChild(row);
+    });
+    // Add event listeners to delete buttons
+    document.querySelectorAll('.delete-auth-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const domain = btn.getAttribute('data-domain');
+            const authType = btn.getAttribute('data-type');
+            if (confirm(`Are you sure you want to delete auth data for ${domain} (${authType})?`)) {
+                eel.delete_auth_entry(domain, authType)().then((result) => {
+                    if (result) {
+                        alert('Auth data deleted.');
+                        eel.list_auth_entries()(updateAuthTable);
+                    } else {
+                        alert('Failed to delete auth data.');
+                    }
+                });
+            }
+        });
+    });
 }

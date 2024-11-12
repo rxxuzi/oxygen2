@@ -10,14 +10,15 @@ from datetime import datetime
 
 import eel
 
-from world import get_default_output_path, get_config_path
-
 from api import DownloaderAPI
+from auth import AuthManager
+from world import get_default_output_path, get_config_path, get_domain_from_url
 
 
 class App:
     def __init__(self):
         self.api = DownloaderAPI()
+        self.auth_manager = AuthManager()
 
         self.download_queue = queue.Queue()
         self.worker_thread = threading.Thread(target=self.download_worker, daemon=True)
@@ -81,7 +82,7 @@ class App:
 
     def open_download_folder(self):
         output_path = self.settings['audio_output_path'] if getattr(self, 'current_audio_only', False) else \
-        self.settings['video_output_path']
+            self.settings['video_output_path']
         try:
             if sys.platform.startswith('win'):
                 os.startfile(output_path)
@@ -128,6 +129,20 @@ class App:
             self.current_audio_only = audio_only
             eel.updateDownloadList(f"Downloading: {url}")
             eel.setProgressBar(0.0)
+
+            # ドメインを取得
+            domain = get_domain_from_url(url)
+
+            # 認証情報を確認
+            cookie_file = self.auth_manager.get_cookie_file(domain)
+            credentials = self.auth_manager.get_credentials(domain)
+
+            if cookie_file:
+                self.api.set_cookie_file(cookie_file)
+            elif credentials:
+                self.api.set_credentials(credentials['username'], credentials['password'])
+            else:
+                self.api.clear_auth_options()
 
             if audio_only:
                 output_path = self.settings['audio_output_path']

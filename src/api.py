@@ -21,6 +21,7 @@ class DownloaderAPI:
             'buffer_size': '16M',
             'cachedir': str(get_config_path() / "cache")
         }
+        self.auth_options = {}
 
     def set_output_path(self, path):
         self.output_path = path
@@ -33,6 +34,19 @@ class DownloaderAPI:
         for key, value in kwargs.items():
             if key in self.options:
                 self.options[key] = value
+
+    def set_cookie_file(self, cookie_file):
+        self.auth_options['cookiefile'] = cookie_file
+        self.auth_options.pop('username', None)
+        self.auth_options.pop('password', None)
+
+    def set_credentials(self, username, password):
+        self.auth_options['username'] = username
+        self.auth_options['password'] = password
+        self.auth_options.pop('cookiefile', None)
+
+    def clear_auth_options(self):
+        self.auth_options = {}
 
     def parse_size(self, size_str: str) -> int:
         """Parse a size string (e.g., '16M') and return the size in bytes."""
@@ -100,7 +114,6 @@ class DownloaderAPI:
                     progress_callback(progress, filename)
 
         # Parse size options
-        # Throttle rate is set to 0 by default and not configurable
         buffersize = self.parse_size(self.options['buffer_size'])
         buffersize = buffersize if buffersize else None
 
@@ -123,6 +136,9 @@ class DownloaderAPI:
             'merge_output_format': 'mp4' if not audio_only else None,
             'concurrent_fragment_downloads': int(self.options['segments']),
         }
+
+        # 認証オプションを追加
+        ydl_opts.update(self.auth_options)
 
         # Add postprocessors for audio if necessary
         if audio_only and self.audio_format != 'auto':

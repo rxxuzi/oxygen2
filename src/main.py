@@ -3,7 +3,7 @@
 import sys
 import eel
 from app import App
-from world import check_ffmpeg, log_error
+from world import check_ffmpeg, log_error, get_domain_from_url
 
 app = None
 
@@ -211,6 +211,52 @@ def set_buffer_size(buffer_size):
 def resetDownloadState():
     # This function is called from Python to JavaScript to reset download state
     pass  # The frontend handles the reset
+
+
+
+@eel.expose
+def save_cookie(url, content):
+    try:
+        domain = get_domain_from_url(url)
+        if not domain:
+            eel.updateDownloadList("Invalid URL for cookie.")
+            return False
+        result = app.auth_manager.save_cookies(domain, content)
+        return result
+    except Exception as e:
+        log_error(str(e))
+        return False
+
+@eel.expose
+def save_credentials(url, username, password):
+    try:
+        domain = get_domain_from_url(url)
+        if not domain:
+            eel.updateDownloadList("Invalid URL for credentials.")
+            return False
+        result = app.auth_manager.save_credentials(domain, username, password)
+        return result
+    except Exception as e:
+        log_error(str(e))
+        return False
+
+@eel.expose
+def list_auth_entries():
+    try:
+        entries = app.auth_manager.list_auth_entries()
+        return entries
+    except Exception as e:
+        log_error(str(e))
+        return []
+
+@eel.expose
+def delete_auth_entry(domain, auth_type):
+    try:
+        result = app.auth_manager.delete_auth(domain, auth_type)
+        return result
+    except Exception as e:
+        log_error(str(e))
+        return False
 
 
 def on_close(page, sockets):
